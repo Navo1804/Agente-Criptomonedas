@@ -1,0 +1,200 @@
+# 🤖 Bot de Análisis de Cartera Cripto
+
+Bot en Python que monitorea una cartera de criptomonedas (estrategia DCA), calcula
+ganancia/pérdida real, estima tiempos de recuperación, corre un análisis técnico
+tipo *Smart Money Concepts* (SMC), y entrega todo por Telegram: un mensaje corto
++ un PDF detallado con tablas, gráficos y un informe ejecutivo generado con IA.
+
+Pensado para correr de forma automática (por ejemplo, una vez por semana vía cron).
+---
+## ✨ Qué hace
+
+- Descarga el historial de precios **completo** de cada par desde la API pública
+  de **Binance** (sin necesidad de API key).
+- Calcula, por cada par y para la cartera combinada:
+  - Cantidad total y **precio de compra promedio ponderado** (soporta múltiples
+    compras / DCA por par).
+  - Ganancia o pérdida en USD y en %.
+  - **Estimación de días para recuperar el punto de equilibrio** si vas perdiendo
+    (basada en el retorno diario promedio reciente — es una proyección estadística,
+    no una predicción garantizada).
+- Corre un análisis de estructura de mercado (SMC): tendencia, BOS, ChoCh,
+  liquidez y Order Blocks (demanda/oferta).
+- Genera un análisis en lenguaje natural por par usando la API de **Gemini**.
+- Guarda un **historial persistente** (CSV) de cada corrida, para poder comparar
+  la evolución de tu cartera en el tiempo.
+- Arma un **PDF** con:
+  - Tabla resumen general + gráfico de barras de rendimiento por par.
+  - Gráfico de evolución porcentual general de la cartera a través de las corridas.
+  - Tablas detalladas por par (métricas, lotes de compra, análisis de Gemini).
+  - Un **informe ejecutivo final** (máx. ~1 carilla) que compara la corrida actual
+    contra la anterior — ideal si corres el bot semanalmente.
+- Envía un **mensaje corto** de estado + el **PDF adjunto** por Telegram.
+
+---
+
+## 📁 Estructura de archivos
+
+```
+ProyectoAgenteMonedas/
+├── main.py                        # Script principal
+├── historial/
+│   └── historial_cartera.csv      # Se crea solo; historial persistente de cada corrida
+└── venv/                          # Entorno virtual (no subir a git)
+```
+
+> ⚠️ `historial/` NO debe estar en `/tmp` — ya está configurado así en el script
+> para que sobreviva a reinicios del servidor.
+
+---
+
+## ⚙️ Requisitos
+
+- Python 3.9+
+- Una cuenta de Telegram con un bot creado (vía [@BotFather](https://t.me/BotFather))
+- Una API key de [Google AI Studio](https://aistudio.google.com/apikey) (Gemini)
+- Conexión a internet (API pública de Binance, sin API key)
+
+---
+
+## 🚀 Instalación
+
+```bash
+# 1. Crear y activar entorno virtual
+python3 -m venv venv
+source venv/bin/activate        # Windows: venv\Scripts\activate
+
+# 2. Instalar dependencias
+pip install google-genai reportlab requests matplotlib pandas numpy
+```
+
+---
+
+## 🔑 Configuración de credenciales
+
+**Nunca hardcodees credenciales en el código.** Todas se leen desde variables
+de entorno:
+
+```bash
+export GEMINI_API_KEY="tu_api_key_de_gemini"
+export TELEGRAM_TOKEN="tu_token_del_bot_de_telegram"
+export TELEGRAM_CHAT_ID="tu_chat_id"
+```
+
+> En Mac/Linux, `export` solo dura mientras la terminal esté abierta. Si quieres
+> que persista, agrega esas líneas a tu `~/.zshrc` (Mac) o `~/.bashrc` (Linux).
+
+### ¿Cómo consigo mi `TELEGRAM_CHAT_ID`?
+1. Escríbele cualquier mensaje a tu bot en Telegram.
+2. Abre en el navegador: `https://api.telegram.org/bot<TU_TOKEN>/getUpdates`
+3. Busca `"chat":{"id": ...}` en la respuesta — ese número es tu `chat_id`.
+
+---
+
+## 💰 Configurar tu cartera
+
+Edita el diccionario `CARTERA` dentro de `main.py`. Las claves son **símbolos de
+Binance** (par + `USDT`, sin guion) — puedes verificarlos en
+`https://www.binance.com/es/trade/<PAR>_USDT`.
+
+```python
+CARTERA = {
+    "LINKUSDT": [
+        {"cantidad": 50, "precio_compra": 12.30},
+    ],
+    "ROSEUSDT": [
+        {"cantidad": 5143.2516, "precio_compra": 0.01043},   # compra 1 (DCA)
+        {"cantidad": 2000, "precio_compra": 0.009},          # compra 2 (DCA)
+    ],
+}
+```
+
+Reglas importantes:
+- `"cantidad"` = unidades de la criptomoneda que compraste, **no dólares**.
+  Si solo sabes cuánto invertiste en USD: `cantidad = dolares / precio_compra`.
+- Si compraste el mismo par en varios precios (DCA), agrega **cada compra como
+  un elemento distinto de la lista** — el script calcula automáticamente el
+  precio promedio ponderado.
+- Python usa **punto** como separador decimal, nunca coma. Puedes usar `_` como
+  separador visual de miles: `5_143.2516` (equivale a `5143.2516`).
+
+---
+
+## ▶️ Ejecutar
+
+```bash
+python3 main.py
+```
+
+En consola verás el progreso de la descarga y el análisis. Al finalizar, deberías
+recibir en Telegram:
+1. Un mensaje corto con el estado general de la cartera.
+2. El PDF detallado adjunto.
+
+> La primera corrida no tendrá gráfico de evolución ni comparación en el informe
+> final (no hay historial previo todavía) — es normal, aparece desde la segunda
+> ejecución en adelante.
+
+---
+
+## ⏰ Automatizar (correr una vez por semana)
+
+Con `cron` (Mac/Linux):
+
+```bash
+crontab -e
+```
+
+Agrega una línea (ejemplo: todos los lunes a las 9:00 AM):
+
+```
+0 9 * * 1 cd /ruta/completa/a/ProyectoAgenteMonedas && venv/bin/python3 main.py >> cron.log 2>&1
+```
+
+> Cron no carga tu `~/.zshrc` por defecto, así que si tus variables de entorno
+> solo están exportadas ahí, agrégalas directamente dentro de la línea de cron
+> o usa un archivo `.env` con `python-dotenv`.
+
+---
+
+## 🧠 Sobre el análisis SMC y la estimación de recuperación
+
+- El score SMC (tendencia, BOS, ChoCh, Order Blocks) es una heurística propia,
+  **no está validada con backtesting** — trátalo como referencia, no como señal
+  garantizada.
+- La estimación de días de recuperación proyecta el retorno diario promedio de
+  los últimos 90 días hacia adelante. Es una **extrapolación estadística simple**,
+  no una predicción confiable — el mercado cripto no se comporta de forma lineal.
+- El informe ejecutivo generado por Gemini es una síntesis en lenguaje natural
+  de estos mismos datos, no asesoría financiera.
+
+**Nada en este proyecto constituye asesoría financiera.** Es una herramienta de
+seguimiento y análisis personal.
+
+---
+
+## 🔒 Seguridad
+
+- Nunca hardcodees `GEMINI_API_KEY`, `TELEGRAM_TOKEN` ni `TELEGRAM_CHAT_ID` en el
+  código ni los compartas en texto plano (chats, capturas, repos públicos).
+- Si por accidente expones una key, revócala de inmediato y genera una nueva:
+  - Gemini: [aistudio.google.com/apikey](https://aistudio.google.com/apikey)
+  - Telegram: hablar con [@BotFather](https://t.me/BotFather) → `/revoke`
+- Si en el futuro conectas una API key de Binance (por ejemplo, para leer tus
+  balances reales), actívala **solo con permiso de lectura**, nunca con retiro
+  ni trading, y restringe el acceso por IP si es posible.
+- No subas `venv/`, `historial/` ni ningún archivo con credenciales a un
+  repositorio público. Agrega esto a tu `.gitignore`:
+  ```
+  venv/
+  historial/
+  .env
+  ```
+
+---
+
+## 🛠️ Próximas mejoras posibles
+
+- Lectura automática de balances vía API key de Binance (solo lectura).
+- Límite de antigüedad en el historial CSV (ej. conservar solo los últimos 90 días).
+- Envío de alertas puntuales (no solo reportes programados) si un par cruza cierto umbral de pérdida.
