@@ -1,9 +1,9 @@
 import os
+import time
 from datetime import datetime
 
 import numpy as np
 import pandas as pd
-import yfinance as yf
 from google import genai
 import requests
 
@@ -40,6 +40,9 @@ HISTORIAL_CSV = os.path.join(HISTORIAL_DIR, "historial_cartera.csv")
 
 # ============================================================
 # TU CARTERA
+# Las claves son símbolos de Binance (par + USDT, SIN guion): "LINKUSDT", "BTCUSDT", etc.
+# Puedes verificar el símbolo exacto en https://www.binance.com/es/trade/LINK_USDT
+#
 # "cantidad" = unidades de la criptomoneda que compraste (NO dólares).
 # Si solo sabes cuánto invertiste en USD, calcula: cantidad = dolares / precio_compra
 #
@@ -48,30 +51,30 @@ HISTORIAL_CSV = os.path.join(HISTORIAL_DIR, "historial_cartera.csv")
 # el precio promedio ponderado y la cantidad total para ese par.
 # ============================================================
 CARTERA = {
-    "ROSE-USD": [
+   "ROSEUSDT": [
         {"cantidad": 5_143.2516,   "precio_compra": 0.01043},
     ],
-    "GRT1-USD": [
+    "GRTUSDT": [
         {"cantidad": 1_279., "precio_compra": 0.03906},
         {"cantidad": 999, "precio_compra": 0.02446},
     ],
-    "ALGO-USD": [
+    "ALGOUSDT": [
         {"cantidad": 440.559,  "precio_compra": 0.1133},
     ],
-    "ARB-USD": [
+    "ARBUSDT": [
         {"cantidad": 261.738,  "precio_compra": 0.191},
     ],
-    "LDO-USD": [
+    "LDOUSDT": [
         {"cantidad": 88.95096,  "precio_compra": 0.5615},
     ],
-    "LINK-USD": [
+    "LINKUSDT": [
         {"cantidad": 4.02, "precio_compra": 12.41},
         {"cantidad": 2.48, "precio_compra": 9.24},
     ],
-    "ONDO-USD": [
+    "ONDOUSDT": [
         {"cantidad": 65.2347,  "precio_compra": 0.3824},
     ],
-    "POL28321-USD": [
+    "POLUSDT": [
         {"cantidad": 237.4623,  "precio_compra": 0.1062},
    ],
 }
@@ -219,19 +222,6 @@ def calcular_estado_inversion(posicion, historial):
 # ============================================================
 # GRÁFICOS (matplotlib -> PNG, luego insertados en el PDF)
 # ============================================================
-def grafico_precio_historico(ticker_symbol, historial, precio_compra_promedio, ruta_salida):
-    fig, ax = plt.subplots(figsize=(7, 3))
-    ax.plot(historial.index, historial["Close"], color="#2563eb", linewidth=1.5, label="Precio de cierre")
-    ax.axhline(precio_compra_promedio, color="#dc2626", linestyle="--", linewidth=1, label="Precio de compra promedio")
-    ax.set_title(f"{ticker_symbol} - Últimos 6 meses")
-    ax.set_ylabel("Precio (USD)")
-    ax.legend(fontsize=8)
-    ax.grid(alpha=0.3)
-    fig.tight_layout()
-    fig.savefig(ruta_salida, dpi=140)
-    plt.close(fig)
-
-
 def grafico_resumen_cartera(resultados, ruta_salida):
     tickers = list(resultados.keys())
     porcentajes = [resultados[t]["estado"]["ganancia_pct"] for t in tickers]
@@ -318,6 +308,80 @@ def grafico_evolucion(df, ticker_symbol, ruta_salida, titulo):
 # ============================================================
 # TELEGRAM
 # ============================================================
+def obtener_comparacion_anterior(df_historial):
+    """
+    Compara la corrida actual (última fila 'TOTAL' del CSV) contra la corrida
+    inmediatamente anterior. Devuelve None si es la primera corrida registrada
+    (no hay nada con qué comparar todavía).
+    """
+    if df_historial is None:
+        return None
+
+    df_total = df_historial[df_historial["ticker"] == "TOTAL"].sort_values("fecha")
+    if len(df_total) < 2:
+        return None
+
+    actual = df_total.iloc[-1]
+    anterior = df_total.iloc[-2]
+
+    return {
+        "fecha_anterior": anterior["fecha"],
+        "ganancia_pct_anterior": anterior["ganancia_pct"],
+        "valor_actual_anterior": anterior["valor_actual"],
+        "delta_pct": actual["ganancia_pct"] - anterior["ganancia_pct"],
+        "delta_valor_usd": actual["valor_actual"] - anterior["valor_actual"],
+        "dias_transcurridos": (actual["fecha"] - anterior["fecha"]).days,
+    }
+
+
+def generar_informe_general(resultados, resumen_total, comparacion):
+    """
+    Pide a Gemini un informe ejecutivo de máximo ~300 palabras (pensado para
+    caber en una sola carilla del PDF) que resuma el estado general de la
+    cartera y lo compare contra la corrida anterior (útil si el script corre
+    automáticamente, p. ej. una vez por semana vía cron).
+    """
+    resumen_pares = "\n".join(
+        f"- {ticker}: {datos['estado']['ganancia_pct']:.2f}% "
+        f"({'ganancia' if datos['estado']['en_ganancia'] else 'pérdida'}), "
+        f"tendencia SMC {datos['resultado_smc']['tendencia']}, score {datos['score']}"
+        for ticker, datos in resultados.items()
+    )
+
+    if comparacion:
+        texto_comparacion = (
+            f"Hace {comparacion['dias_transcurridos']} días la cartera estaba en "
+            f"{comparacion['ganancia_pct_anterior']:.2f}% (valor ${comparacion['valor_actual_anterior']:.2f}). "
+            f"Cambio desde entonces: {comparacion['delta_pct']:+.2f} puntos porcentuales, "
+            f"${comparacion['delta_valor_usd']:+.2f} en valor."
+        )
+    else:
+        texto_comparacion = "Esta es la primera corrida registrada, no hay una corrida anterior con la cual comparar."
+
+    prompt = f"""
+Eres un analista financiero. Con base en estos datos de una cartera de criptomonedas, escribe un informe
+ejecutivo en español, de MÁXIMO 300 palabras (debe caber en una sola página), en prosa corrida dividida
+en 3-4 párrafos cortos, sin encabezados ni listas markdown.
+
+Resumen total: Invertido=${resumen_total['invertido']:.2f}, Valor actual=${resumen_total['valor_actual']:.2f}, P/L=${resumen_total['ganancia_usd']:.2f} ({resumen_total['ganancia_pct']:.2f}%).
+
+Comparación con la corrida anterior: {texto_comparacion}
+
+Detalle por par:
+{resumen_pares}
+
+El informe debe:
+1. Dar un panorama general de cómo va la inversión a la fecha.
+2. Comparar brevemente esta corrida contra la anterior (mejoró, empeoró o se mantuvo, y por cuánto).
+3. Mencionar qué par(es) están destacando, para bien o para mal.
+4. Cerrar con una postura general (mantener, revisar, vigilar de cerca), aclarando que es una referencia
+   informativa basada en datos históricos y no una asesoría financiera.
+
+Sé directo y evita relleno.
+"""
+    return cliente.models.generate_content(model="gemini-2.5-flash", contents=prompt).text
+
+
 def enviar_mensaje(token, chat_id, mensaje):
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     respuesta = requests.post(url, data={"chat_id": chat_id, "text": mensaje})
@@ -344,13 +408,80 @@ def enviar_documento(token, chat_id, ruta_pdf, caption=""):
 # ============================================================
 # ANÁLISIS POR PAR (SMC + estado de inversión + Gemini)
 # ============================================================
+COLUMNAS_KLINES = [
+    "open_time", "Open", "High", "Low", "Close", "Volume",
+    "close_time", "quote_asset_volume", "trades",
+    "taker_buy_base", "taker_buy_quote", "ignore",
+]
+VELAS_POR_SOLICITUD = 1000  # máximo que permite Binance por llamada
+
+
+def descargar_historial(simbolo_binance, intentos=3, espera_segundos=5):
+    """
+    Descarga TODO el historial diario disponible en Binance para el símbolo,
+    desde su fecha de listado hasta hoy. Binance limita cada solicitud a 1000
+    velas, así que se pagina automáticamente hacia adelante hasta traerlas todas.
+    No requiere API key (datos de mercado públicos).
+    """
+    url = "https://api.binance.com/api/v3/klines"
+
+    for intento in range(1, intentos + 1):
+        try:
+            todas_las_velas = []
+            start_time = 0  # 0 = Binance empieza desde la fecha de listado del par
+
+            while True:
+                params = {
+                    "symbol": simbolo_binance,
+                    "interval": "1d",
+                    "limit": VELAS_POR_SOLICITUD,
+                    "startTime": start_time,
+                }
+                respuesta = requests.get(url, params=params, timeout=15)
+
+                if respuesta.status_code == 400:
+                    # Símbolo inválido: no tiene sentido reintentar
+                    print(f"❌ Símbolo inválido en Binance: {simbolo_binance} ({respuesta.text})")
+                    return None
+
+                if respuesta.status_code != 200:
+                    raise requests.RequestException(f"Binance respondió {respuesta.status_code}: {respuesta.text}")
+
+                lote = respuesta.json()
+                if not lote:
+                    break
+
+                todas_las_velas.extend(lote)
+
+                if len(lote) < VELAS_POR_SOLICITUD:
+                    break  # ya llegamos a las velas más recientes, no hay más páginas
+
+                start_time = lote[-1][6] + 1  # close_time de la última vela + 1 ms
+                time.sleep(0.2)  # pausa breve para no saturar el rate limit de Binance
+
+            if not todas_las_velas:
+                return None
+
+            df = pd.DataFrame(todas_las_velas, columns=COLUMNAS_KLINES)
+            for col in ["Open", "High", "Low", "Close"]:
+                df[col] = df[col].astype(float)
+            df.index = pd.to_datetime(df["open_time"], unit="ms")
+            df = df[~df.index.duplicated(keep="first")]
+            return df[["Open", "High", "Low", "Close"]]
+
+        except requests.RequestException as e:
+            print(f"⏳ Intento {intento}/{intentos}: error con {simbolo_binance} ({e}), reintentando en {espera_segundos}s...")
+            time.sleep(espera_segundos)
+
+    return None
+
+
 def analizar_par(ticker_symbol, lotes):
     posicion = consolidar_posicion(lotes)
 
-    ticker = yf.Ticker(ticker_symbol)
-    historial = ticker.history(period="6mo", interval="1d")
+    historial = descargar_historial(ticker_symbol)
 
-    if historial.empty:
+    if historial is None or historial.empty:
         print(f"⚠️ Sin datos para {ticker_symbol}, se omite.")
         return None
 
@@ -530,24 +661,56 @@ def generar_pdf_reporte(resultados, resumen_total, ruta_pdf):
             story.append(tabla_lotes)
             story.append(Spacer(1, 10))
 
-        ruta_grafico_par = os.path.join(CARPETA_TMP, f"{ticker_symbol}.png")
-        grafico_precio_historico(ticker_symbol, datos["historial"], estado["precio_compra"], ruta_grafico_par)
-        story.append(Image(ruta_grafico_par, width=16 * cm, height=6.8 * cm))
-        story.append(Spacer(1, 8))
-
-        if df_historial is not None:
-            ruta_evolucion_par = os.path.join(CARPETA_TMP, f"evolucion_{ticker_symbol}.png")
-            hay_evolucion_par = grafico_evolucion(
-                df_historial, ticker_symbol, ruta_evolucion_par,
-                f"Evolución histórica del % de {ticker_symbol}",
-            )
-            if hay_evolucion_par:
-                story.append(Image(ruta_evolucion_par, width=16 * cm, height=6.8 * cm))
-                story.append(Spacer(1, 8))
-
         story.append(Paragraph("Análisis (Gemini):", ParagraphStyle("bold_small", parent=estilo_small, fontName="Helvetica-Bold")))
         story.append(Paragraph(datos["respuesta_gemini"].replace("\n", "<br/>"), estilo_small))
         story.append(PageBreak())
+
+    # --- Informe general final (máx. 1 carilla), con comparación vs. la corrida anterior ---
+    comparacion = obtener_comparacion_anterior(df_historial)
+    informe_general = generar_informe_general(resultados, resumen_total, comparacion)
+
+    story.append(Paragraph("Informe General de la Cartera", estilo_h2))
+    story.append(Spacer(1, 8))
+
+    if comparacion:
+        tabla_comparacion = Table(
+            [
+                ["", f"Corrida anterior ({comparacion['fecha_anterior'].strftime('%d/%m/%Y')})", "Corrida actual", "Cambio"],
+                [
+                    "% Ganancia/Pérdida",
+                    f"{comparacion['ganancia_pct_anterior']:.2f}%",
+                    f"{resumen_total['ganancia_pct']:.2f}%",
+                    f"{comparacion['delta_pct']:+.2f} pts",
+                ],
+                [
+                    "Valor de cartera",
+                    f"${comparacion['valor_actual_anterior']:.2f}",
+                    f"${resumen_total['valor_actual']:.2f}",
+                    f"${comparacion['delta_valor_usd']:+.2f}",
+                ],
+            ],
+            colWidths=[4 * cm, 4.3 * cm, 4.3 * cm, 3.4 * cm],
+        )
+        tabla_comparacion.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1e293b")),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+            ("FONTSIZE", (0, 0), (-1, -1), 8),
+            ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f1f5f9")]),
+        ]))
+        story.append(tabla_comparacion)
+        story.append(Spacer(1, 12))
+    else:
+        story.append(Paragraph(
+            "Esta es la primera corrida registrada; a partir de la próxima ejecución este informe incluirá "
+            "la comparación semana a semana.",
+            estilo_small,
+        ))
+        story.append(Spacer(1, 12))
+
+    story.append(Paragraph(informe_general.replace("\n", "<br/>"), estilo_normal))
 
     doc = SimpleDocTemplate(ruta_pdf, pagesize=letter, topMargin=1.5 * cm, bottomMargin=1.5 * cm)
     doc.build(story)
