@@ -1,0 +1,18 @@
+# Credenciales — NUNCA subir esto a GitHub
+.env
+ 
+# Entorno virtual de Python
+venv/
+ 
+# Historial personal de inversión (contiene tus cifras reales)
+historial/
+ 
+# Logs de ejecución
+*.log
+ 
+# Archivos temporales de Python
+__pycache__/
+*.pyc
+ 
+# macOS
+.DS_Store
