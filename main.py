@@ -62,25 +62,32 @@ HISTORIAL_CSV = os.path.join(HISTORIAL_DIR, "historial_cartera.csv")
 # el precio promedio ponderado y la cantidad total para ese par.
 # ============================================================
 CARTERA = {
-    "LINKUSDT": [
-        {"cantidad": 50, "precio_compra": 12.30},
-    ],
-    "BTCUSDT": [
-        {"cantidad": 0.05, "precio_compra": 60000},
-    ],
-    "ETHUSDT": [
-        {"cantidad": 1.2, "precio_compra": 3200},
-    ],
     "ROSEUSDT": [
-        {"cantidad": 5143.2516, "precio_compra": 0.01043},
-        {"cantidad": 2000, "precio_compra": 0.009},
+        {"cantidad": 5_143.2516,   "precio_compra": 0.01043},
     ],
     "GRTUSDT": [
-        {"cantidad": 0, "precio_compra": 0},  # <-- reemplaza con tus datos reales
+        {"cantidad": 1_279., "precio_compra": 0.03906},
+        {"cantidad": 999, "precio_compra": 0.02446},
+    ],
+    "ALGOUSDT": [
+        {"cantidad": 440.559,  "precio_compra": 0.1133},
+    ],
+    "ARBUSDT": [
+        {"cantidad": 261.738,  "precio_compra": 0.191},
+    ],
+    "LDOUSDT": [
+        {"cantidad": 88.95096,  "precio_compra": 0.5615},
+    ],
+    "LINKUSDT": [
+        {"cantidad": 4.02, "precio_compra": 12.41},
+        {"cantidad": 2.48, "precio_compra": 9.24},
+    ],
+    "ONDOUSDT": [
+        {"cantidad": 65.2347,  "precio_compra": 0.3824},
     ],
     "POLUSDT": [
-        {"cantidad": 0, "precio_compra": 0},  # <-- reemplaza con tus datos reales
-    ],
+        {"cantidad": 237.4623,  "precio_compra": 0.1062},
+   ],
 }
 
 

@@ -1,7 +1,7 @@
 #!/bin/zsh
  
 # Ve a la carpeta del proyecto (AJUSTA esta ruta a la tuya)
-cd "/Users/FamiliaNavarrete/Desktop/Agente Criptomonedas"
+cd "/Users/FamiliaNavarrete/Agente Criptomonedas"
  
 # Corre el bot usando el Python del entorno virtual.
 # Las credenciales se cargan solas desde el archivo .env de esta misma carpeta.

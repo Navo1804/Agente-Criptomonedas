@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.familianavarrete.agentecriptomonedas</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/zsh</string>
+        <string>/Users/FamiliaNavarrete/Agente Criptomonedas/run_bot.sh</string>
+    </array>
+
+    <!-- Corre todos los viernes a las 9:00 AM (hora del sistema de la Mac).
+         Weekday: 0 o 7 = domingo, 1 = lunes, ... 5 = viernes, 6 = sábado -->
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Weekday</key>
+        <integer>5</integer>
+        <key>Hour</key>
+        <integer>9</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>/Users/FamiliaNavarrete/Agente Criptomonedas/launchd_salida.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/FamiliaNavarrete/Agente Criptomonedas/launchd_error.log</string>
+</dict>
+</plist>
