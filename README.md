@@ -111,28 +111,6 @@ Al terminar, debería llegar un mensaje y un PDF al chat de Telegram configurado
 La primera vez que se corre no habrá gráfico de evolución todavía, porque recién
 se está guardando el primer registro. A partir de la segunda vez ya aparece.
 
-## Para que corra solo cada semana
-
-Se puede programar con `cron` (Mac y Linux). Por ejemplo, para que corra todos
-los lunes a las 9 de la mañana:
-
-```bash
-crontab -e
-```
-
-Y agregar esta línea, reemplazando la ruta por la del proyecto:
-
-```
-0 9 * * 1 cd /ruta/del/proyecto && venv/bin/python3 main.py
-```
-
-Como las credenciales se cargan solas desde `.env`, no hace falta hacer nada
-adicional para que la tarea programada las reconozca.
-
-> En Mac, `cron` a veces necesita permiso especial ("Acceso Total al Disco") en
-> Configuración del Sistema para poder correr. Si la tarea programada no llega
-> a ejecutarse, esa es la causa más común.
-
 ## Importante
 
 - Nada de lo que genera este bot es una recomendación financiera. Los datos y
