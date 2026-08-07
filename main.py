@@ -66,7 +66,7 @@ CARTERA = {
         {"cantidad": 5_143.2516,   "precio_compra": 0.01043},
     ],
     "GRTUSDT": [
-        {"cantidad": 1_279., "precio_compra": 0.03906},
+        {"cantidad": 1_279.0, "precio_compra": 0.03906},
         {"cantidad": 999, "precio_compra": 0.02446},
     ],
     "ALGOUSDT": [
@@ -390,7 +390,7 @@ El informe debe:
 
 Sé directo y evita relleno.
 """
-    return cliente.models.generate_content(model="gemini-2.5-flash", contents=prompt).text
+    return preguntar_gemini(prompt)
 
 
 def enviar_mensaje(token, chat_id, mensaje):
@@ -487,6 +487,24 @@ def descargar_historial(simbolo_binance, intentos=3, espera_segundos=5):
     return None
 
 
+def preguntar_gemini(prompt, modelo="gemini-2.5-flash"):
+    """
+    Llama a Gemini y devuelve el texto de la respuesta. Si falla (cuota agotada,
+    error de red, etc.), no interrumpe el resto del script: devuelve un mensaje
+    de aviso en su lugar, para que el reporte se siga generando con el resto
+    de los datos disponibles.
+    """
+    try:
+        return cliente.models.generate_content(model=modelo, contents=prompt).text
+    except Exception as e:
+        print(f"⚠️ Gemini no respondió ({e}). Se omite el análisis de IA para esta sección.")
+        return (
+            "Análisis de IA no disponible en esta corrida (se alcanzó el límite de cuota "
+            "de la API de Gemini o hubo un error de conexión). El resto de los datos "
+            "numéricos de este reporte sí son correctos."
+        )
+
+
 def analizar_par(ticker_symbol, lotes):
     posicion = consolidar_posicion(lotes)
 
@@ -530,7 +548,7 @@ Responde en máximo 500 caracteres, directo, sin saludos:
 4. Decisión sugerida: Comprar más, Vender, o Mantener/Esperar.
 5. Confianza: Alta/Media/Baja.
 """
-    respuesta_gemini = cliente.models.generate_content(model="gemini-2.5-flash", contents=prompt).text
+    respuesta_gemini = preguntar_gemini(prompt)
 
     return {
         "historial": historial,
