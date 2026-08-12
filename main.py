@@ -66,7 +66,7 @@ CARTERA = {
         {"cantidad": 5_143.2516,   "precio_compra": 0.01043},
     ],
     "GRTUSDT": [
-        {"cantidad": 1_279.0, "precio_compra": 0.03906},
+        {"cantidad": 1_279., "precio_compra": 0.03906},
         {"cantidad": 999, "precio_compra": 0.02446},
     ],
     "ALGOUSDT": [
@@ -574,12 +574,83 @@ def generar_pdf_reporte(resultados, resumen_total, ruta_pdf):
 
     story = []
 
-    # --- Portada / resumen general ---
-    story.append(Paragraph("Reporte de Cartera Cripto", estilo_titulo))
-    story.append(Paragraph(datetime.now().strftime("Generado el %d/%m/%Y a las %H:%M"), estilo_small))
-    story.append(Spacer(1, 12))
+    # ============================================================
+    # PORTADA (página 1)
+    # ============================================================
+    color_acento = colors.HexColor("#16a34a") if resumen_total["ganancia_pct"] >= 0 else colors.HexColor("#dc2626")
+    color_total = color_acento  # se reutiliza más abajo, en la tabla resumen y el informe general
 
-    color_total = colors.HexColor("#16a34a") if resumen_total["ganancia_pct"] >= 0 else colors.HexColor("#dc2626")
+    estilo_portada_titulo = ParagraphStyle(
+        "portada_titulo", parent=estilo_titulo, fontSize=30, leading=36,
+        alignment=1, textColor=colors.HexColor("#1e293b"),
+    )
+    estilo_portada_subtitulo = ParagraphStyle(
+        "portada_subtitulo", parent=estilo_normal, fontSize=13, leading=18,
+        alignment=1, textColor=colors.HexColor("#64748b"),
+    )
+    estilo_portada_fecha = ParagraphStyle(
+        "portada_fecha", parent=estilo_small, alignment=1,
+        textColor=colors.HexColor("#94a3b8"),
+    )
+    estilo_caja_label = ParagraphStyle(
+        "caja_label", parent=estilo_small, alignment=1,
+        textColor=colors.white, fontSize=10, leading=13,
+    )
+    estilo_caja_valor = ParagraphStyle(
+        "caja_valor", parent=estilo_titulo, alignment=1,
+        fontSize=28, leading=32, textColor=colors.white,
+    )
+    estilo_caja_pct = ParagraphStyle(
+        "caja_pct", parent=estilo_normal, alignment=1,
+        fontSize=15, leading=18, textColor=colors.white,
+    )
+
+    story.append(Spacer(1, 4.5 * cm))
+
+    barra_acento = Table([[""]], colWidths=[16 * cm], rowHeights=[0.3 * cm])
+    barra_acento.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, -1), color_acento)]))
+    story.append(barra_acento)
+    story.append(Spacer(1, 26))
+
+    story.append(Paragraph("Reporte de Cartera Cripto", estilo_portada_titulo))
+    story.append(Spacer(1, 8))
+    story.append(Paragraph("Resumen semanal de inversión y análisis técnico", estilo_portada_subtitulo))
+    story.append(Spacer(1, 50))
+
+    estado_txt = "GANANCIA" if resumen_total["ganancia_pct"] >= 0 else "PÉRDIDA"
+    caja_resumen = Table(
+        [
+            [Paragraph("VALOR ACTUAL DE LA CARTERA", estilo_caja_label)],
+            [Paragraph(f"${resumen_total['valor_actual']:.2f}", estilo_caja_valor)],
+            [Paragraph(f"{resumen_total['ganancia_pct']:+.2f}%  &nbsp;·&nbsp;  {estado_txt}", estilo_caja_pct)],
+        ],
+        colWidths=[10 * cm],
+        hAlign="CENTER",
+    )
+    caja_resumen.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#1e293b")),
+        ("TOPPADDING", (0, 0), (0, 0), 18),
+        ("BOTTOMPADDING", (0, 0), (0, 0), 4),
+        ("TOPPADDING", (0, 2), (0, 2), 6),
+        ("BOTTOMPADDING", (0, 2), (0, 2), 18),
+        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+    ]))
+    story.append(caja_resumen)
+    story.append(Spacer(1, 40))
+
+    cantidad_pares = len(resultados)
+    story.append(Paragraph(f"{cantidad_pares} par{'es' if cantidad_pares != 1 else ''} de criptomonedas analizados", estilo_portada_fecha))
+    story.append(Spacer(1, 6))
+    story.append(Paragraph(datetime.now().strftime("Generado automáticamente el %d/%m/%Y a las %H:%M"), estilo_portada_fecha))
+
+    story.append(PageBreak())
+
+    # ============================================================
+    # RESUMEN GENERAL (página 2)
+    # ============================================================
+    story.append(Paragraph("Resumen General", estilo_h2))
+    story.append(Spacer(1, 10))
+
     tabla_resumen = Table(
         [
             ["Total invertido", "Valor actual", "Ganancia / Pérdida", "% Total"],
