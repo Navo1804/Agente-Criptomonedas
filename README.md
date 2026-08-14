@@ -35,17 +35,92 @@ hace falta cuenta ni clave para esa parte.
 
 ## Instalación
 
-Dentro de la carpeta del proyecto:
+Las instrucciones cambian un poco según el sistema operativo. Elegir la sección
+correspondiente.
 
-```bash
-python3 -m venv venv
-source venv/bin/activate
-python3 -m pip install google-genai reportlab requests matplotlib pandas numpy python-dotenv
-```
+### Windows
 
-> Si `pip install ...` da el error "command not found", usar siempre
-> `python3 -m pip install ...` en su lugar (como en el ejemplo de arriba). Si
-> ni así funciona, correr primero `python3 -m ensurepip --upgrade`.
+1. Instalar Python (si no está instalado) desde
+   [python.org/downloads](https://www.python.org/downloads/). **Importante:**
+   durante la instalación, marcar la casilla **"Add python.exe to PATH"** antes
+   de darle a "Install Now".
+2. Abrir la **Símbolo del sistema (CMD)** o **PowerShell** y ubicarse en la
+   carpeta del proyecto:
+   ```bat
+   cd ruta\a\la\carpeta\del\proyecto
+   ```
+3. Crear y activar el entorno virtual:
+   ```bat
+   python -m venv venv
+   venv\Scripts\activate
+   ```
+   > Si usa PowerShell y aparece un error de permisos al activar, ejecutar antes:
+   > `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`
+4. Instalar las dependencias:
+   ```bat
+   python -m pip install google-genai reportlab requests matplotlib pandas numpy python-dotenv
+   ```
+
+### macOS
+
+1. Instalar Python (si no está instalado). La forma más simple es con
+   [Homebrew](https://brew.sh):
+   ```bash
+   brew install python
+   ```
+   También se puede descargar el instalador desde
+   [python.org/downloads](https://www.python.org/downloads/).
+2. Abrir la app **Terminal** y ubicarse en la carpeta del proyecto:
+   ```bash
+   cd ruta/a/la/carpeta/del/proyecto
+   ```
+3. Crear y activar el entorno virtual:
+   ```bash
+   python3 -m venv venv
+   source venv/bin/activate
+   ```
+4. Instalar las dependencias:
+   ```bash
+   python3 -m pip install google-genai reportlab requests matplotlib pandas numpy python-dotenv
+   ```
+
+### Linux
+
+1. Instalar Python y las herramientas necesarias (en distribuciones basadas en
+   Debian/Ubuntu):
+   ```bash
+   sudo apt update
+   sudo apt install python3 python3-pip python3-venv
+   ```
+   En otras distribuciones, usar el gestor de paquetes correspondiente (`dnf`,
+   `pacman`, etc.).
+2. Ubicarse en la carpeta del proyecto:
+   ```bash
+   cd ruta/a/la/carpeta/del/proyecto
+   ```
+3. Crear y activar el entorno virtual:
+   ```bash
+   python3 -m venv venv
+   source venv/bin/activate
+   ```
+4. Instalar las dependencias:
+   ```bash
+   python3 -m pip install google-genai reportlab requests matplotlib pandas numpy python-dotenv
+   ```
+
+### Notas comunes a los tres sistemas
+
+- Si `pip install ...` da el error "command not found", usar siempre
+  `python3 -m pip install ...` (Windows: `python -m pip install ...`) en su
+  lugar. Si ni así funciona, correr primero `python3 -m ensurepip --upgrade`
+  (Windows: `python -m ensurepip --upgrade`).
+- El entorno virtual queda activado solo en la ventana de terminal donde se
+  ejecutó el comando `activate`. Hay que activarlo de nuevo cada vez que se
+  abra una terminal nueva antes de correr el bot.
+- Para salir del entorno virtual en cualquier sistema, el comando es:
+  ```bash
+  deactivate
+  ```
 
 ## Configuración
 
@@ -62,9 +137,14 @@ acordarse de borrar nada antes de subir el código.
 1. En la carpeta del proyecto hay un archivo llamado `.env.example`, que sirve
    de plantilla.
 2. Se hace una copia de ese archivo y se renombra a `.env`:
-   ```bash
-   cp .env.example .env
-   ```
+   - Windows (CMD):
+     ```bat
+     copy .env.example .env
+     ```
+   - macOS / Linux:
+     ```bash
+     cp .env.example .env
+     ```
 3. Se abre `.env` con cualquier editor de texto y se reemplaza cada valor por
    el real:
    ```
@@ -103,9 +183,16 @@ las compras dentro de la misma lista, y el bot calcula el precio promedio solo.
 
 ## Cómo correrlo
 
-```bash
-python3 main.py
-```
+Con el entorno virtual activado:
+
+- Windows:
+  ```bat
+  python main.py
+  ```
+- macOS / Linux:
+  ```bash
+  python3 main.py
+  ```
 
 Al terminar, debería llegar un mensaje y un PDF al chat de Telegram configurado.
 La primera vez que se corre no habrá gráfico de evolución todavía, porque recién
