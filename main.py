@@ -5,7 +5,8 @@ from datetime import datetime
 import numpy as np
 import pandas as pd
 from dotenv import load_dotenv
-from google import genai
+from google import genai   
+from google.genai import types
 import requests
 
 import matplotlib
@@ -40,6 +41,7 @@ load_dotenv(os.path.join(RUTA_PROYECTO, ".env"))
 cliente = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
 TOKEN = os.environ.get("TELEGRAM_TOKEN")
 CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 
 CARPETA_TMP = "/tmp/reporte_cartera"
 os.makedirs(CARPETA_TMP, exist_ok=True)
@@ -62,32 +64,11 @@ HISTORIAL_CSV = os.path.join(HISTORIAL_DIR, "historial_cartera.csv")
 # el precio promedio ponderado y la cantidad total para ese par.
 # ============================================================
 CARTERA = {
-    "ROSEUSDT": [
-        {"cantidad": 5_143.2516,   "precio_compra": 0.01043},
-    ],
-    "GRTUSDT": [
-        {"cantidad": 1_279., "precio_compra": 0.03906},
-        {"cantidad": 999, "precio_compra": 0.02446},
-    ],
-    "ALGOUSDT": [
-        {"cantidad": 440.559,  "precio_compra": 0.1133},
-    ],
-    "ARBUSDT": [
-        {"cantidad": 261.738,  "precio_compra": 0.191},
-    ],
-    "LDOUSDT": [
-        {"cantidad": 88.95096,  "precio_compra": 0.5615},
-    ],
     "LINKUSDT": [
         {"cantidad": 4.02, "precio_compra": 12.41},
-        {"cantidad": 2.48, "precio_compra": 9.24},
+        {"cantidad": 2.48, "precio_compra": 9.24},   # DCA: puedes agregar varias compras por par
     ],
-    "ONDOUSDT": [
-        {"cantidad": 65.2347,  "precio_compra": 0.3824},
-    ],
-    "POLUSDT": [
-        {"cantidad": 237.4623,  "precio_compra": 0.1062},
-   ],
+    # ...agrega tus propios pares aquí
 }
 
 
@@ -486,24 +467,57 @@ def descargar_historial(simbolo_binance, intentos=3, espera_segundos=5):
 
     return None
 
+def preguntar_groq(prompt, modelo= "openai/gpt-oss-120b"):
+    """
+    Respaldo cuando Gemini falla o está saturado. Usa la API de Groq, que es
+    compatible con el formato de OpenAI, vía requests (sin librerías nuevas).
+    """
+    url = "https://api.groq.com/openai/v1/chat/completions"
+    headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
+    payload = {
+        "model": modelo,
+        "messages": [{"role": "user", "content": prompt}],
+        "max_tokens": 1200,
+    }
+    respuesta = requests.post(url, headers=headers, json=payload, timeout=30)
+    respuesta.raise_for_status()
+    return respuesta.json()["choices"][0]["message"]["content"]
+
 
 def preguntar_gemini(prompt, modelo="gemini-2.5-flash"):
     """
-    Llama a Gemini y devuelve el texto de la respuesta. Si falla (cuota agotada,
-    error de red, etc.), no interrumpe el resto del script: devuelve un mensaje
-    de aviso en su lugar, para que el reporte se siga generando con el resto
-    de los datos disponibles.
+    Llama a Gemini. Si falla (cuota, 503 por alta demanda, respuesta vacía, etc.),
+    intenta automáticamente con Groq como respaldo antes de rendirse. Así el
+    reporte se sigue generando aunque Gemini esté saturado.
     """
     try:
-        return cliente.models.generate_content(model=modelo, contents=prompt).text
-    except Exception as e:
-        print(f"⚠️ Gemini no respondió ({e}). Se omite el análisis de IA para esta sección.")
-        return (
-            "Análisis de IA no disponible en esta corrida (se alcanzó el límite de cuota "
-            "de la API de Gemini o hubo un error de conexión). El resto de los datos "
-            "numéricos de este reporte sí son correctos."
+        response = cliente.models.generate_content(
+            model=modelo,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                thinking_config=types.ThinkingConfig(thinking_budget=0),
+                max_output_tokens=1200,
+            ),
         )
+        texto = response.text
+        if texto:
+            return texto
+        candidato = response.candidates[0] if response.candidates else None
+        motivo = candidato.finish_reason if candidato else "sin candidatos"
+        print(f"⚠️ Gemini devolvió vacío. finish_reason={motivo}. Probando con Groq...")
+    except Exception as e:
+        print(f"⚠️ Gemini no respondió ({e}). Probando con Groq...")
 
+    if GROQ_API_KEY:
+        try:
+            return preguntar_groq(prompt)
+        except Exception as e:
+            print(f"⚠️ Groq tampoco respondió ({e}).")
+
+    return (
+        "Análisis de IA no disponible en esta corrida (tanto Gemini como el respaldo "
+        "Groq fallaron). El resto de los datos numéricos de este reporte sí son correctos."
+    )
 
 def analizar_par(ticker_symbol, lotes):
     posicion = consolidar_posicion(lotes)
